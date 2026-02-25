@@ -253,6 +253,72 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     );
   }
 
+  Future<void> _deleteListing() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: KColors.surface,
+        title: const Text(
+          'Eliminar oferta',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          '¿Estás seguro de que quieres eliminar esta oferta?',
+          style: TextStyle(color: KColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: KColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Eliminar',
+              style: TextStyle(color: KColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    if (!mounted) return;
+
+    // Attempt to parse out storage file paths from public URLs and delete them
+    final photos = (_listing!['listing_photos'] as List?) ?? [];
+    if (photos.isNotEmpty) {
+      final List<String> paths = [];
+      for (var p in photos) {
+        final url = p['url'] as String;
+        final match = RegExp(
+          r'/storage/v1/object/public/[^/]+/(.+)$',
+        ).firstMatch(url);
+        if (match != null) {
+          paths.add(match.group(1)!);
+        }
+      }
+      if (paths.isNotEmpty) {
+        try {
+          await Supabase.instance.client.storage
+              .from('listing-photos')
+              .remove(paths);
+        } catch (_) {}
+      }
+    }
+
+    await Supabase.instance.client
+        .from('listings')
+        .delete()
+        .eq('id', widget.id);
+    if (mounted) {
+      context.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -427,10 +493,25 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
         color: KColors.bg,
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         child: isOwner
-            ? KButton(
-                label: 'Editar oferta',
-                outlined: true,
-                onPressed: () => context.go('/home/listing/${widget.id}/edit'),
+            ? Row(
+                children: [
+                  Expanded(
+                    child: KButton(
+                      label: 'Eliminar',
+                      outlined: true,
+                      color: KColors.error,
+                      onPressed: _deleteListing,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: KButton(
+                      label: 'Editar',
+                      onPressed: () =>
+                          context.go('/home/listing/${widget.id}/edit'),
+                    ),
+                  ),
+                ],
               )
             : KButton(
                 label: 'Contactar vendedor',

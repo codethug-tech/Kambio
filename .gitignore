@@ -1,0 +1,42 @@
+# ─── Secrets & credentials ────────────────────────────────────────
+**/.env
+**/.env.local
+**/.env.production
+**/key.properties
+**/*.keystore
+**/*.jks
+
+# ─── Node / backend ───────────────────────────────────────────────
+node_modules/
+backend/node_modules/
+admin/node_modules/
+npm-debug.log*
+yarn-error.log
+.pnpm-debug.log*
+
+# ─── Next.js / admin ──────────────────────────────────────────────
+admin/.next/
+admin/out/
+admin/.vercel/
+
+# ─── Flutter / app ────────────────────────────────────────────────
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.packages
+app/build/
+app/android/.gradle/
+app/android/local.properties
+app/android/app/google-services.json
+app/ios/Flutter/flutter_export_environment.sh
+app/ios/.symlinks/
+app/ios/Pods/
+app/ios/Runner.xcworkspace/xcuserdata/
+
+# ─── OS / IDE ─────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+Thumbs.db
+.vscode/settings.json
+.idea/
+*.iml

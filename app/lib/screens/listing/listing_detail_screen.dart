@@ -304,7 +304,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
       if (paths.isNotEmpty) {
         try {
           await Supabase.instance.client.storage
-              .from('listing-photos')
+              .from('kambio-photos')
               .remove(paths);
         } catch (_) {}
       }

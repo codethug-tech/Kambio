@@ -1,11 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 type Stats = {
     users: number;
@@ -78,104 +73,82 @@ export default function AnalyticsPage() {
     });
     const [activity, setActivity] = useState<Activity[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-    const fetchStats = useCallback(async () => {
-        const [users, activeListings, openReports, completedTrades, blockedUsers, totalTrades, totalMessages] = await Promise.all([
-            supabase.from('users').select('id', { count: 'exact', head: true }),
-            supabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-            supabase.from('reports').select('id', { count: 'exact', head: true }).eq('resolved', false),
-            supabase.from('trades').select('id', { count: 'exact', head: true }).eq('status', 'completed'),
-            supabase.from('users').select('id', { count: 'exact', head: true }).eq('is_blocked', true),
-            supabase.from('trades').select('id', { count: 'exact', head: true }),
-            supabase.from('chat_messages').select('id', { count: 'exact', head: true }),
-        ]);
+    const fetchData = useCallback(async () => {
+        try {
+            const res = await fetch('/api/analytics', { cache: 'no-store' });
+            if (!res.ok) throw new Error('Failed to load analytics');
+            const json = await res.json();
 
-        setStats({
-            users: users.count ?? 0,
-            activeListings: activeListings.count ?? 0,
-            openReports: openReports.count ?? 0,
-            completedTrades: completedTrades.count ?? 0,
-            blockedUsers: blockedUsers.count ?? 0,
-            totalTrades: totalTrades.count ?? 0,
-            totalMessages: totalMessages.count ?? 0,
-        });
-        setLastUpdated(new Date());
+            setStats(json.stats);
+
+            const combined: Activity[] = [
+                ...(json.activity.users ?? []).map((u: any) => ({
+                    id: u.id,
+                    type: 'user' as const,
+                    label: 'New user registered',
+                    sub: u.name ?? 'Unknown',
+                    ts: u.created_at,
+                })),
+                ...(json.activity.listings ?? []).map((l: any) => ({
+                    id: l.id,
+                    type: 'listing' as const,
+                    label: 'New listing posted',
+                    sub: l.title,
+                    ts: l.created_at,
+                })),
+                ...(json.activity.reports ?? []).map((r: any) => ({
+                    id: r.id,
+                    type: 'report' as const,
+                    label: 'Report submitted',
+                    sub: r.reason?.slice(0, 50) ?? '—',
+                    ts: r.created_at,
+                })),
+                ...(json.activity.trades ?? []).map((t: any) => ({
+                    id: t.id,
+                    type: 'trade' as const,
+                    label: `Trade ${t.status}`,
+                    sub: `Trade #${t.id.slice(0, 8).toUpperCase()}`,
+                    ts: t.created_at,
+                })),
+            ].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime()).slice(0, 12);
+
+            setActivity(combined);
+            setLastUpdated(new Date());
+        } catch (err) {
+            console.error('[Analytics]', err);
+        }
     }, []);
 
-    const fetchActivity = useCallback(async () => {
-        const [recentUsers, recentListings, recentReports, recentTrades] = await Promise.all([
-            supabase.from('users').select('id, name, created_at').order('created_at', { ascending: false }).limit(5),
-            supabase.from('listings').select('id, title, created_at').order('created_at', { ascending: false }).limit(5),
-            supabase.from('reports').select('id, reason, created_at').order('created_at', { ascending: false }).limit(5),
-            supabase.from('trades').select('id, status, created_at').order('created_at', { ascending: false }).limit(5),
-        ]);
-
-        const combined: Activity[] = [
-            ...(recentUsers.data ?? []).map(u => ({
-                id: u.id,
-                type: 'user' as const,
-                label: `New user registered`,
-                sub: u.name ?? 'Unknown',
-                ts: u.created_at,
-            })),
-            ...(recentListings.data ?? []).map(l => ({
-                id: l.id,
-                type: 'listing' as const,
-                label: `New listing posted`,
-                sub: l.title,
-                ts: l.created_at,
-            })),
-            ...(recentReports.data ?? []).map(r => ({
-                id: r.id,
-                type: 'report' as const,
-                label: `Report submitted`,
-                sub: r.reason?.slice(0, 50) ?? '—',
-                ts: r.created_at,
-            })),
-            ...(recentTrades.data ?? []).map(t => ({
-                id: t.id,
-                type: 'trade' as const,
-                label: `Trade ${t.status}`,
-                sub: `Trade #${t.id.slice(0, 8).toUpperCase()}`,
-                ts: t.created_at,
-            })),
-        ].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime()).slice(0, 12);
-
-        setActivity(combined);
-    }, []);
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        await fetchData();
+        setRefreshing(false);
+    };
 
     useEffect(() => {
-        Promise.all([fetchStats(), fetchActivity()]).finally(() => setLoading(false));
+        fetchData().finally(() => setLoading(false));
 
-        // Realtime subscriptions — refresh on any change to core tables
-        const tables = ['users', 'listings', 'reports', 'trades', 'chat_messages'];
-        const channels = tables.map(table =>
-            supabase
-                .channel(`analytics-${table}`)
-                .on('postgres_changes', { event: '*', schema: 'public', table }, () => {
-                    fetchStats();
-                    fetchActivity();
-                })
-                .subscribe()
-        );
-
-        return () => { channels.forEach(c => supabase.removeChannel(c)); };
-    }, [fetchStats, fetchActivity]);
+        // Auto-refresh every 60 seconds
+        const interval = setInterval(fetchData, 60_000);
+        return () => clearInterval(interval);
+    }, [fetchData]);
 
     const kpis = [
-        { label: 'Total Users', value: stats.users, icon: activityIcon.user, color: 'bg-[#1D63ED]/20 text-[#1D63ED]', change: null },
-        { label: 'Active Listings', value: stats.activeListings, icon: activityIcon.listing, color: 'bg-purple-500/20 text-purple-400', change: null },
-        { label: 'Open Reports', value: stats.openReports, icon: activityIcon.report, color: 'bg-orange-500/20 text-orange-400', change: null },
-        { label: 'Completed Trades', value: stats.completedTrades, icon: activityIcon.trade, color: 'bg-emerald-500/20 text-emerald-400', change: null },
-        { label: 'Blocked Users', value: stats.blockedUsers, icon: activityIcon.user, color: 'bg-red-500/20 text-red-400', change: null },
-        { label: 'Total Trades', value: stats.totalTrades, icon: activityIcon.trade, color: 'bg-yellow-500/20 text-yellow-400', change: null },
+        { label: 'Total Users', value: stats.users, icon: activityIcon.user, color: 'bg-[#1D63ED]/20 text-[#1D63ED]' },
+        { label: 'Active Listings', value: stats.activeListings, icon: activityIcon.listing, color: 'bg-purple-500/20 text-purple-400' },
+        { label: 'Open Reports', value: stats.openReports, icon: activityIcon.report, color: 'bg-orange-500/20 text-orange-400' },
+        { label: 'Completed Trades', value: stats.completedTrades, icon: activityIcon.trade, color: 'bg-emerald-500/20 text-emerald-400' },
+        { label: 'Blocked Users', value: stats.blockedUsers, icon: activityIcon.user, color: 'bg-red-500/20 text-red-400' },
+        { label: 'Total Trades', value: stats.totalTrades, icon: activityIcon.trade, color: 'bg-yellow-500/20 text-yellow-400' },
         {
             label: 'Chat Messages', value: stats.totalMessages, icon: (
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 </svg>
-            ), color: 'bg-cyan-500/20 text-cyan-400', change: null
+            ), color: 'bg-cyan-500/20 text-cyan-400'
         },
     ];
 
@@ -195,10 +168,21 @@ export default function AnalyticsPage() {
                         Live
                     </span>
                     <button
-                        onClick={() => { fetchStats(); fetchActivity(); }}
-                        className="px-4 py-2 rounded-xl bg-[#151D29] border border-white/6 text-gray-400 hover:text-white text-sm transition-colors"
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#151D29] border border-white/6 text-gray-400 hover:text-white text-sm transition-colors disabled:opacity-50"
                     >
-                        Refresh
+                        <svg
+                            className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2.5}
+                            viewBox="0 0 24 24"
+                        >
+                            <path d="M23 4v6h-6" /><path d="M1 20v-6h6" />
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                        </svg>
+                        {refreshing ? 'Refreshing...' : 'Refresh'}
                     </button>
                 </div>
             </div>
@@ -251,9 +235,7 @@ export default function AnalyticsPage() {
                         <div className="bg-[#151D29] rounded-2xl p-5 border border-white/5">
                             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Report Resolution</p>
                             <div className="flex items-end gap-2">
-                                <p className="text-3xl font-bold text-white">
-                                    {stats.openReports}
-                                </p>
+                                <p className="text-3xl font-bold text-white">{stats.openReports}</p>
                                 <p className="text-sm text-gray-500 mb-1">pending review</p>
                             </div>
                             <div className="mt-3 h-2 bg-[#0D0D0D] rounded-full overflow-hidden">
@@ -282,7 +264,7 @@ export default function AnalyticsPage() {
                             <h2 className="font-semibold text-white">Live Activity Feed</h2>
                             <span className="flex items-center gap-1.5 text-xs text-emerald-400">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                Updating in realtime
+                                Updating every 60s
                             </span>
                         </div>
                         <div className="divide-y divide-white/4">

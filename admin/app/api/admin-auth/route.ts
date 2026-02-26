@@ -10,7 +10,8 @@ export async function POST(req: NextRequest) {
     cookieStore.set('kambio_admin', 'true', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 60 * 60 * 24, // 24h
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7, // 7 days
         path: '/',
     });
     return NextResponse.json({ ok: true });

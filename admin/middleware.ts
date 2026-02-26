@@ -4,8 +4,8 @@ export function middleware(req: NextRequest) {
     const admin = req.cookies.get('kambio_admin')?.value;
     const { pathname } = req.nextUrl;
 
-    // Public: login page and admin-auth API
-    if (pathname === '/' || pathname.startsWith('/api/admin-auth')) {
+    // Public: login page and admin-auth/logout APIs
+    if (pathname === '/' || pathname.startsWith('/api/admin-auth') || pathname.startsWith('/api/admin-logout')) {
         return NextResponse.next();
     }
 

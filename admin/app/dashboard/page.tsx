@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
 async function toggleListing(formData: FormData) {
     'use server';
@@ -11,12 +12,34 @@ async function toggleListing(formData: FormData) {
     revalidatePath('/dashboard');
 }
 
+async function deleteListing(formData: FormData) {
+    'use server';
+    const id = formData.get('id') as string;
+    const { data: photos } = await supabaseAdmin
+        .from('listing_photos').select('url').eq('listing_id', id);
+    if (photos && photos.length > 0) {
+        const paths = photos.map((p: any) => {
+            const match = (p.url as string).match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)$/);
+            return match ? match[1] : null;
+        }).filter(Boolean) as string[];
+        if (paths.length > 0) await supabaseAdmin.storage.from('listing-photos').remove(paths);
+    }
+    await supabaseAdmin.from('listings').delete().eq('id', id);
+    revalidatePath('/dashboard');
+}
+
+async function generateReport() {
+    'use server';
+    redirect('/dashboard/analytics');
+}
+
 async function getData() {
     const [users, listings, reports, trades, recentListings] = await Promise.all([
         supabaseAdmin.from('users').select('id', { count: 'exact', head: true }),
         supabaseAdmin.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'active'),
         supabaseAdmin.from('reports').select('id', { count: 'exact', head: true }).eq('resolved', false),
-        supabaseAdmin.from('trades').select('id', { count: 'exact', head: true }),
+        // Only count completed trades (not pending/cancelled)
+        supabaseAdmin.from('trades').select('id', { count: 'exact', head: true }).eq('status', 'completed'),
         supabaseAdmin
             .from('listings')
             .select('id, title, type, status, created_at, users(id, name), listing_photos(url)')
@@ -64,7 +87,6 @@ export default async function DashboardPage() {
             value: stats.users.toLocaleString(),
             icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>,
             iconBg: 'bg-[#1D63ED]/20 text-[#1D63ED]',
-            trend: '+12%',
             href: '/dashboard/users',
         },
         {
@@ -72,15 +94,13 @@ export default async function DashboardPage() {
             value: stats.listings.toLocaleString(),
             icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>,
             iconBg: 'bg-purple-500/20 text-purple-400',
-            trend: '+5%',
             href: '/dashboard/listings',
         },
         {
-            label: 'Reported Items',
+            label: 'Open Reports',
             value: stats.reports.toLocaleString(),
             icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>,
             iconBg: 'bg-orange-500/20 text-orange-400',
-            trend: '+2%',
             href: '/dashboard/reports',
         },
         {
@@ -88,8 +108,7 @@ export default async function DashboardPage() {
             value: stats.trades.toLocaleString(),
             icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>,
             iconBg: 'bg-emerald-500/20 text-emerald-400',
-            trend: '+15%',
-            href: '/dashboard/listings',
+            href: '/dashboard/analytics',
         },
     ];
 
@@ -106,9 +125,11 @@ export default async function DashboardPage() {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                         Last 30 Days
                     </div>
-                    <button className="px-4 py-2 rounded-xl bg-[#1D63ED] hover:bg-[#1855CC] text-white text-sm font-semibold transition-colors">
-                        Generate Report
-                    </button>
+                    <form action={generateReport}>
+                        <button type="submit" className="px-4 py-2 rounded-xl bg-[#1D63ED] hover:bg-[#1855CC] text-white text-sm font-semibold transition-colors">
+                            Generate Report
+                        </button>
+                    </form>
                 </div>
             </div>
 
@@ -121,10 +142,6 @@ export default async function DashboardPage() {
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${card.iconBg}`}>
                                 {card.icon}
                             </div>
-                            <span className="text-xs font-semibold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                {card.trend}
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></svg>
-                            </span>
                         </div>
                         <p className="text-gray-400 text-xs mb-1">{card.label}</p>
                         <p className="text-3xl font-bold text-white">{card.value}</p>
@@ -207,15 +224,21 @@ export default async function DashboardPage() {
                                     {/* Quick Actions */}
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">
-                                            {/* Approve / Check */}
-                                            <button className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-600 hover:text-emerald-400 hover:bg-emerald-400/10 transition-colors">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                            </button>
-                                            {/* Hide toggle */}
+                                            {/* Approve — only show when listing is not active */}
+                                            {l.status !== 'active' && (
+                                                <form action={toggleListing} className="inline">
+                                                    <input type="hidden" name="id" value={l.id} />
+                                                    <input type="hidden" name="action" value="show" />
+                                                    <button type="submit" title="Approve" className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-600 hover:text-emerald-400 hover:bg-emerald-400/10 transition-colors">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                                    </button>
+                                                </form>
+                                            )}
+                                            {/* Hide / Show toggle */}
                                             <form action={toggleListing} className="inline">
                                                 <input type="hidden" name="id" value={l.id} />
                                                 <input type="hidden" name="action" value={l.status === 'active' ? 'hide' : 'show'} />
-                                                <button type="submit" className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-600 hover:text-gray-300 hover:bg-white/8 transition-colors">
+                                                <button type="submit" title={l.status === 'active' ? 'Hide' : 'Show'} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-600 hover:text-gray-300 hover:bg-white/8 transition-colors">
                                                     {l.status === 'active'
                                                         ? <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
                                                         : <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
@@ -223,9 +246,12 @@ export default async function DashboardPage() {
                                                 </button>
                                             </form>
                                             {/* Delete */}
-                                            <button className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-600 hover:text-red-400 hover:bg-red-400/10 transition-colors">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
-                                            </button>
+                                            <form action={deleteListing} className="inline">
+                                                <input type="hidden" name="id" value={l.id} />
+                                                <button type="submit" title="Delete" className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-600 hover:text-red-400 hover:bg-red-400/10 transition-colors">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
+                                                </button>
+                                            </form>
                                         </div>
                                     </td>
                                 </tr>

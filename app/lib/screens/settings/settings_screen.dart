@@ -44,12 +44,20 @@ class SettingsScreen extends StatelessWidget {
           _tile(
             icon: Icons.shield_outlined,
             title: 'Política de privacidad',
-            onTap: () {},
+            onTap: () {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Próximamente')));
+            },
           ),
           _tile(
             icon: Icons.gavel_outlined,
             title: 'Términos de uso',
-            onTap: () {},
+            onTap: () {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Próximamente')));
+            },
           ),
           const Divider(color: KColors.divider),
           _tile(

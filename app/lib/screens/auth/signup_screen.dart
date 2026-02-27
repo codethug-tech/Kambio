@@ -44,7 +44,7 @@ class _SignupScreenState extends State<SignupScreen> {
               'state': _state,
             })
             .eq('auth_id', auth.user!.id);
-        if (mounted) context.go('/home');
+        if (mounted) context.go('/onboarding');
       }
     } on AuthException catch (e) {
       if (mounted) {

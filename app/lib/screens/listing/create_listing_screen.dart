@@ -114,14 +114,15 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       // Upload new photos
       for (int i = 0; i < _images.length; i++) {
         final bytes = await _images[i].readAsBytes();
+        final ext = _images[i].name.split('.').last.toLowerCase();
         final path =
-            'listings/$listingId/${DateTime.now().millisecondsSinceEpoch}_$i';
+            'listings/$listingId/${DateTime.now().millisecondsSinceEpoch}_$i.$ext';
         await Supabase.instance.client.storage
             .from('kambio-photos')
             .uploadBinary(
               path,
               bytes,
-              fileOptions: const FileOptions(upsert: true),
+              fileOptions: FileOptions(upsert: true, contentType: 'image/$ext'),
             );
         final url = Supabase.instance.client.storage
             .from('kambio-photos')

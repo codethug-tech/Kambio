@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart'; // Add kIsWeb import
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -17,7 +17,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
   late final TextEditingController _bioCtrl;
-  File? _pickedImage;
+  XFile? _pickedImage;
+  Uint8List? _pickedImageBytes;
   bool _uploading = false;
   String? _avatarUrl;
 
@@ -44,22 +45,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       maxWidth: 600,
     );
     if (picked != null) {
-      setState(() => _pickedImage = File(picked.path));
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _pickedImage = picked;
+        _pickedImageBytes = bytes;
+      });
     }
   }
 
   Future<String?> _uploadAvatar(String userId) async {
-    if (_pickedImage == null) return _avatarUrl;
+    if (_pickedImage == null || _pickedImageBytes == null) return _avatarUrl;
     final ext = _pickedImage!.path.split('.').last.toLowerCase();
-    final path = 'avatars/$userId.$ext';
-    final bytes = await _pickedImage!.readAsBytes();
+
+    // For web compatibility, default to png if extension is empty or a blob URL
+    final safeExt = (ext.isEmpty || ext.contains('blob') || ext.contains('/'))
+        ? 'png'
+        : ext;
+    final path = 'avatars/$userId.$safeExt';
 
     final res = await Supabase.instance.client.storage
         .from('avatars')
         .uploadBinary(
           path,
-          bytes,
-          fileOptions: FileOptions(upsert: true, contentType: 'image/$ext'),
+          _pickedImageBytes!,
+          fileOptions: FileOptions(upsert: true, contentType: 'image/$safeExt'),
         );
     if (res.isEmpty) return null;
 
@@ -79,7 +88,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           .update({
             'name': _nameCtrl.text.trim(),
             'bio': _bioCtrl.text.trim(),
-            'avatar_url': ?newAvatarUrl,
+            if (newAvatarUrl != null) 'avatar_url': newAvatarUrl,
           })
           .eq('id', userId);
 
@@ -105,11 +114,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final displayImage = _pickedImage != null
-        ? FileImage(_pickedImage!)
-        : (_avatarUrl != null
-              ? NetworkImage(_avatarUrl!) as ImageProvider
-              : null);
+    ImageProvider? displayImage;
+    if (_pickedImageBytes != null) {
+      displayImage = MemoryImage(_pickedImageBytes!);
+    } else if (_avatarUrl != null) {
+      displayImage = NetworkImage(_avatarUrl!);
+    }
 
     return Scaffold(
       appBar: AppBar(

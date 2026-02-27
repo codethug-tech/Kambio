@@ -166,183 +166,193 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildFeed(AsyncValue<List<Map<String, dynamic>>> listingsAsync) {
-    return CustomScrollView(
-      slivers: [
-        // App bar with search
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text(
-                      'K',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: KColors.green,
-                      ),
-                    ),
-                    const Text(
-                      'ambio',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.settings_outlined,
-                        color: KColors.textSecondary,
-                      ),
-                      onPressed: () => context.go('/home/settings'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Intercambia. Negocia. Confía.',
-                  style: KTextStyles.bodySmall,
-                ),
-                const SizedBox(height: 12),
-                // BCV Exchange Rates Banner
-                const BcvRateBanner(),
-                // Search bar
-                TextField(
-                  controller: _search,
-                  style: KTextStyles.body,
-                  onChanged: (v) => setState(() => _q = v),
-                  decoration: InputDecoration(
-                    hintText: 'Buscar ofertas...',
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      color: KColors.textHint,
-                    ),
-                    suffixIcon: _q.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(
-                              Icons.clear,
-                              color: KColors.textHint,
-                              size: 18,
-                            ),
-                            onPressed: () {
-                              _search.clear();
-                              setState(() => _q = '');
-                            },
-                          )
-                        : null,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Type filter chips
-                SizedBox(
-                  height: 36,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
+    return RefreshIndicator(
+      color: KColors.green,
+      backgroundColor: KColors.surface,
+      onRefresh: () async {
+        // Invalidate the provider so it re-fetches from Supabase
+        ref.invalidate(listingsProvider(_filter));
+        // Wait a tiny bit just for the UI feel
+        await Future.delayed(const Duration(milliseconds: 500));
+      },
+      child: CustomScrollView(
+        slivers: [
+          // App bar with search
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      _chip('Todos', null),
-                      _chip('Cambio Bs↔\$', 'cambio'),
-                      _chip('Trueque', 'trueque'),
-                      _chip('Servicio', 'servicio'),
+                      const Text(
+                        'K',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: KColors.green,
+                        ),
+                      ),
+                      const Text(
+                        'ambio',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.settings_outlined,
+                          color: KColors.textSecondary,
+                        ),
+                        onPressed: () => context.go('/home/settings'),
+                      ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 8),
-                // Category + State filters
-                Row(
-                  children: [
-                    Expanded(
-                      child: _dropdown(
-                        'Categoría',
-                        AppConfig.categories,
-                        _filterCategory,
-                        (v) => setState(() => _filterCategory = v),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Intercambia. Negocia. Confía.',
+                    style: KTextStyles.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                  // BCV Exchange Rates Banner
+                  const BcvRateBanner(),
+                  // Search bar
+                  TextField(
+                    controller: _search,
+                    style: KTextStyles.body,
+                    onChanged: (v) => setState(() => _q = v),
+                    decoration: InputDecoration(
+                      hintText: 'Buscar ofertas...',
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: KColors.textHint,
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _dropdown(
-                        'Estado',
-                        AppConfig.states,
-                        _filterState,
-                        (v) => setState(() => _filterState = v),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                if (_filterCategory != null ||
-                    _filterState != null ||
-                    _filterType != null)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => setState(() {
-                        _filterCategory = _filterState = _filterType = null;
-                      }),
-                      child: const Text('Limpiar filtros'),
+                      suffixIcon: _q.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(
+                                Icons.clear,
+                                color: KColors.textHint,
+                                size: 18,
+                              ),
+                              onPressed: () {
+                                _search.clear();
+                                setState(() => _q = '');
+                              },
+                            )
+                          : null,
                     ),
                   ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-        ),
-        // Listing grid
-        listingsAsync.when(
-          loading: () => const SliverFillRemaining(
-            child: Center(
-              child: CircularProgressIndicator(color: KColors.green),
-            ),
-          ),
-          error: (e, _) => SliverFillRemaining(
-            child: Center(child: Text('Error: $e', style: KTextStyles.body)),
-          ),
-          data: (listings) => listings.isEmpty
-              ? SliverFillRemaining(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                  const SizedBox(height: 12),
+                  // Type filter chips
+                  SizedBox(
+                    height: 36,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
                       children: [
-                        const Icon(
-                          Icons.inbox_outlined,
-                          color: KColors.textHint,
-                          size: 64,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No hay ofertas disponibles',
-                          style: KTextStyles.body.copyWith(
-                            color: KColors.textSecondary,
-                          ),
-                        ),
+                        _chip('Todos', null),
+                        _chip('Cambio Bs↔\$', 'cambio'),
+                        _chip('Trueque', 'trueque'),
+                        _chip('Servicio', 'servicio'),
                       ],
                     ),
                   ),
-                )
-              : SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 0.75,
+                  const SizedBox(height: 8),
+                  // Category + State filters
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _dropdown(
+                          'Categoría',
+                          AppConfig.categories,
+                          _filterCategory,
+                          (v) => setState(() => _filterCategory = v),
                         ),
-                    delegate: SliverChildBuilderDelegate(
-                      (ctx, i) => ListingCard(listing: listings[i]),
-                      childCount: listings.length,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _dropdown(
+                          'Estado',
+                          AppConfig.states,
+                          _filterState,
+                          (v) => setState(() => _filterState = v),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  if (_filterCategory != null ||
+                      _filterState != null ||
+                      _filterType != null)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => setState(() {
+                          _filterCategory = _filterState = _filterType = null;
+                        }),
+                        child: const Text('Limpiar filtros'),
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+          // Listing grid
+          listingsAsync.when(
+            loading: () => const SliverFillRemaining(
+              child: Center(
+                child: CircularProgressIndicator(color: KColors.green),
+              ),
+            ),
+            error: (e, _) => SliverFillRemaining(
+              child: Center(child: Text('Error: $e', style: KTextStyles.body)),
+            ),
+            data: (listings) => listings.isEmpty
+                ? SliverFillRemaining(
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.inbox_outlined,
+                            color: KColors.textHint,
+                            size: 64,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No hay ofertas disponibles',
+                            style: KTextStyles.body.copyWith(
+                              color: KColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverGrid(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 0.75,
+                          ),
+                      delegate: SliverChildBuilderDelegate(
+                        (ctx, i) => ListingCard(listing: listings[i]),
+                        childCount: listings.length,
+                      ),
                     ),
                   ),
-                ),
-        ),
-        const SliverToBoxAdapter(child: SizedBox(height: 80)),
-      ],
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 80)),
+        ],
+      ),
     );
   }
 

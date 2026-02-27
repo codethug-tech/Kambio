@@ -188,7 +188,9 @@ CREATE TRIGGER set_trades_updated_at
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION refresh_user_rating()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SECURITY DEFINER
+AS $$
 BEGIN
   UPDATE public.users
   SET rating = (

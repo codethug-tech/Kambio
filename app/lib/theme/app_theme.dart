@@ -19,6 +19,7 @@ class KColors {
   static const bg = Color(0xFF0D0D0D); // Near-black
   static const surface = Color(0xFF1A1A1A); // Card / surface
   static const surface2 = Color(0xFF242424); // Input / chip
+  static const surface3 = Color(0xFF333333); // Chat active / elevation
   static const divider = Color(0xFF2A2A2A);
 
   // Text

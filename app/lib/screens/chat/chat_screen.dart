@@ -148,6 +148,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     backgroundColor: KColors.success,
                   ),
                 );
+                // Redirect to profile to leave rating
+                final otherId = _myUserId == buyer['id']
+                    ? seller['id']
+                    : buyer['id'];
+                context.go('/home/profile/$otherId');
               }
             },
             style: ElevatedButton.styleFrom(
@@ -216,10 +221,41 @@ class _ChatScreenState extends State<ChatScreen> {
           Expanded(
             child: ListView.builder(
               controller: _scroll,
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              itemCount: _messages.length + 1, // +1 for the warning banner
               itemBuilder: (_, i) {
-                final m = _messages[i];
+                if (i == 0) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 24, top: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: KColors.surface2,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: KColors.divider),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.security_rounded,
+                          color: KColors.textSecondary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Nunca compartas tu clave, ni transfieras dinero sin verificar el producto en persona.',
+                            style: KTextStyles.caption.copyWith(
+                              color: KColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final m = _messages[i - 1]; // Shift index by 1
                 final isMe = m['sender_id'] == _myUserId;
                 return Align(
                   alignment: isMe
@@ -232,38 +268,41 @@ class _ChatScreenState extends State<ChatScreen> {
                     children: [
                       Container(
                         constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.72,
+                          maxWidth: MediaQuery.of(context).size.width * 0.75,
                         ),
-                        margin: const EdgeInsets.only(bottom: 4),
+                        margin: const EdgeInsets.only(bottom: 2),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
-                          vertical: 10,
+                          vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          color: isMe ? KColors.green : KColors.surface2,
+                          color: isMe ? KColors.surface3 : KColors.surface2,
                           borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(16),
-                            topRight: const Radius.circular(16),
-                            bottomLeft: Radius.circular(isMe ? 16 : 4),
-                            bottomRight: Radius.circular(isMe ? 4 : 16),
+                            topLeft: const Radius.circular(18),
+                            topRight: const Radius.circular(18),
+                            bottomLeft: Radius.circular(isMe ? 18 : 4),
+                            bottomRight: Radius.circular(isMe ? 4 : 18),
                           ),
                         ),
                         child: Text(
                           m['text'] ?? '',
                           style: TextStyle(
-                            fontSize: 14,
-                            color: isMe ? Colors.black : KColors.textPrimary,
+                            fontSize: 15,
+                            color: isMe ? Colors.white : Colors.white,
                           ),
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.only(bottom: 12, top: 2),
                         child: Text(
                           timeago.format(
                             DateTime.parse(m['created_at']),
                             locale: 'es',
                           ),
-                          style: KTextStyles.caption,
+                          style: KTextStyles.caption.copyWith(
+                            fontSize: 10,
+                            color: KColors.textHint,
+                          ),
                         ),
                       ),
                     ],
@@ -274,19 +313,28 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           // Message input
           Container(
-            color: KColors.surface,
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+            decoration: const BoxDecoration(
+              color: KColors.bg,
+              border: Border(top: BorderSide(color: KColors.divider)),
+            ),
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _msg,
                     style: KTextStyles.body,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Escribe un mensaje...',
-                      contentPadding: EdgeInsets.symmetric(
+                      contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 10,
+                      ),
+                      fillColor: KColors.surface2,
+                      filled: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide.none,
                       ),
                     ),
                     onSubmitted: (_) => _send(),
@@ -295,16 +343,22 @@ class _ChatScreenState extends State<ChatScreen> {
                 const SizedBox(width: 8),
                 IconButton(
                   onPressed: _sending ? null : _send,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                   icon: _sending
                       ? const SizedBox(
-                          width: 20,
-                          height: 20,
+                          width: 24,
+                          height: 24,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             color: KColors.green,
                           ),
                         )
-                      : const Icon(Icons.send_rounded, color: KColors.green),
+                      : const Icon(
+                          Icons.send_rounded,
+                          color: KColors.green,
+                          size: 28,
+                        ),
                 ),
               ],
             ),

@@ -220,19 +220,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (comment.isNotEmpty) 'comment': comment,
       });
 
-      // Recalculate average rating on users row
-      final all = await Supabase.instance.client
-          .from('ratings')
-          .select('score')
-          .eq('rated_id', widget.userId);
-      final scores = (all as List).map((r) => (r['score'] as num).toDouble());
-      if (scores.isNotEmpty) {
-        final avg = scores.reduce((a, b) => a + b) / scores.length;
-        await Supabase.instance.client
-            .from('users')
-            .update({'rating': avg})
-            .eq('id', widget.userId);
-      }
+      // Average rating is automatically recalculated via database trigger
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -279,7 +267,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       body: NestedScrollView(
         headerSliverBuilder: (ctx, _) => [
           SliverAppBar(
-            expandedHeight: 220,
+            expandedHeight: 360,
             pinned: true,
             backgroundColor: KColors.bg,
             actions: [

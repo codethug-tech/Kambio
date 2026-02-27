@@ -87,8 +87,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
               onRefresh: _load,
               child: ListView.separated(
                 itemCount: _threads.length,
-                separatorBuilder: (_, _) =>
-                    const Divider(color: KColors.divider, height: 1),
+                separatorBuilder: (_, _) => const SizedBox(height: 4),
                 itemBuilder: (_, i) {
                   final t = _threads[i];
                   final buyer = t['buyer'] as Map?;

@@ -51,8 +51,6 @@ router.post('/signup', authLimiter, async (req, res) => {
     });
     if (authError) return res.status(400).json({ error: authError.message });
 
-    const password_hash = await bcrypt.hash(body.password, 10);
-
     const { data: user, error } = await supabase
         .from('users')
         .insert({

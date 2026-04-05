@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-# Kambio
-=======
 # Kambio — Barter & Currency Swap Marketplace
 
 > Venezuelan marketplace for "I offer X, I want Y" — Bolívares ↔ USD, Zelle, goods, or services. Chat to negotiate, trade off-app, rate each other.
@@ -138,4 +135,3 @@ npm run dev     # Starts on http://localhost:3001
 - [ ] Escrow support
 - [ ] iOS build
 - [ ] Push notifications (FCM)
->>>>>>> 0d5544a (initial commit)

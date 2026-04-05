@@ -213,6 +213,23 @@ CREATE TRIGGER update_user_rating
   FOR EACH ROW EXECUTE FUNCTION refresh_user_rating();
 
 -- ============================================================
+-- EXCHANGE RATES (BCV)
+-- ============================================================
+
+CREATE TABLE public.exchange_rates (
+  currency    TEXT PRIMARY KEY,           -- e.g. 'USD', 'EUR'
+  rate        NUMERIC(12,2) NOT NULL,     -- Bs per 1 unit of currency
+  source      TEXT DEFAULT 'BCV',
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Seed with placeholder rows so upsert works on first run.
+-- updated_at is set to epoch so the staleness check triggers an immediate live fetch.
+INSERT INTO public.exchange_rates (currency, rate, updated_at)
+VALUES ('USD', 0, '1970-01-01T00:00:00Z'),
+       ('EUR', 0, '1970-01-01T00:00:00Z');
+
+-- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
 
@@ -225,6 +242,10 @@ ALTER TABLE public.chat_messages   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.trades          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ratings         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reports         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exchange_rates  ENABLE ROW LEVEL SECURITY;
+
+-- Exchange rates: readable by all, writable by service role only
+CREATE POLICY "rates_read_all" ON public.exchange_rates FOR SELECT USING (true);
 
 -- Users: anyone can read, only self can write
 CREATE POLICY "users_read_all"   ON public.users FOR SELECT USING (true);

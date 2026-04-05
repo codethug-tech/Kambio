@@ -4,9 +4,9 @@ require('express-async-errors');
 const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
-const supabase = require('./lib/supabase');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
+const { refreshAndStore } = require('./lib/bcv');
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -76,81 +76,14 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
     console.log(`Kambio API running on port ${PORT}`);
     // Auto-refresh BCV rates on startup
-    refreshBcvRates();
+    refreshAndStore();
 });
 
-// ── BCV Auto-Refresh Cron (every 6 h: 00:00, 06:00, 12:00, 18:00) ────────────
-cron.schedule('0 0,6,12,18 * * *', () => {
+// ── BCV Auto-Refresh Cron (every 5 min) ─────────────────────────────────────
+cron.schedule('*/5 * * * *', () => {
     console.log('[BCV Cron] Running scheduled rate refresh...');
-    refreshBcvRates();
+    refreshAndStore();
 });
-
-async function refreshBcvRates() {
-    const sources = [
-        // Source 1: open.er-api.com (free, no key)
-        async () => {
-            const r = await fetchWithTimeout(
-                'https://open.er-api.com/v6/latest/USD', 10000);
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            const j = await r.json();
-            const usdVes = j?.rates?.VES;
-            const eurUsd = j?.rates?.EUR;
-            if (!usdVes || !eurUsd) throw new Error('Missing VES/EUR');
-            return { USD: round(usdVes), EUR: round(usdVes / eurUsd) };
-        },
-        // Source 2: frankfurter.dev (ECB rates)
-        async () => {
-            const r = await fetchWithTimeout(
-                'https://api.frankfurter.dev/v1/latest?base=USD&symbols=VES,EUR', 10000);
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            const j = await r.json();
-            const usdVes = j?.rates?.VES;
-            const eurUsd = j?.rates?.EUR;
-            if (!usdVes || !eurUsd) throw new Error('Missing VES/EUR');
-            return { USD: round(usdVes), EUR: round(usdVes / eurUsd) };
-        },
-        // Source 3: dolarapi.com (Venezuela-specific, BCV oficial)
-        async () => {
-            const r = await fetchWithTimeout(
-                'https://ve.dolarapi.com/v1/dolares/oficial', 10000);
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            const j = await r.json();
-            const usd = Number(j?.promedio ?? j?.price ?? 0);
-            if (!usd) throw new Error('No rate returned');
-            return { USD: round(usd), EUR: round(usd * 1.08) };
-        },
-    ];
-
-    for (const source of sources) {
-        try {
-            const rates = await source();
-            const now = new Date().toISOString();
-            const { error } = await supabase
-                .from('exchange_rates')
-                .upsert([
-                    { currency: 'USD', rate: rates.USD, source: 'BCV', updated_at: now },
-                    { currency: 'EUR', rate: rates.EUR, source: 'BCV', updated_at: now },
-                ], { onConflict: 'currency' });
-            if (error) throw new Error(error.message);
-            console.log(`[BCV] Updated — USD: ${rates.USD} / EUR: ${rates.EUR}`);
-            return;
-        } catch (e) {
-            console.warn(`[BCV] Source failed: ${e.message}`);
-        }
-    }
-    console.error('[BCV] All rate sources failed — rates unchanged.');
-}
-
-function round(n) { return Math.round(Number(n) * 100) / 100; }
-
-async function fetchWithTimeout(url, ms) {
-    const ctrl = new AbortController();
-    const id = setTimeout(() => ctrl.abort(), ms);
-    try {
-        return await fetch(url, { signal: ctrl.signal });
-    } finally {
-        clearTimeout(id);
-    }
-}
 
 module.exports = app;
+

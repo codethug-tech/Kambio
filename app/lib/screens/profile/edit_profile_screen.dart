@@ -88,7 +88,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           .update({
             'name': _nameCtrl.text.trim(),
             'bio': _bioCtrl.text.trim(),
-            if (newAvatarUrl != null) 'avatar_url': newAvatarUrl,
+            ...?newAvatarUrl != null ? {'avatar_url': newAvatarUrl} : null,
           })
           .eq('id', userId);
 

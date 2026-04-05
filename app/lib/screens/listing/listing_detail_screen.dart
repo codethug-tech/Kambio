@@ -19,6 +19,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
   bool _loading = true;
   bool _isFav = false;
   String? _myUserId;
+  int _photoPage = 0;
 
   @override
   void initState() {
@@ -360,9 +361,41 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
             ],
             flexibleSpace: FlexibleSpaceBar(
               background: photos.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: photos[0]['url'],
-                      fit: BoxFit.cover,
+                  ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        PageView.builder(
+                          itemCount: photos.length,
+                          onPageChanged: (i) => setState(() => _photoPage = i),
+                          itemBuilder: (_, i) => CachedNetworkImage(
+                            imageUrl: photos[i]['url'],
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        if (photos.length > 1)
+                          Positioned(
+                            bottom: 12,
+                            left: 0,
+                            right: 0,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(
+                                photos.length,
+                                (i) => Container(
+                                  width: _photoPage == i ? 8 : 6,
+                                  height: _photoPage == i ? 8 : 6,
+                                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: _photoPage == i
+                                        ? KColors.green
+                                        : Colors.white.withValues(alpha: 0.5),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     )
                   : Container(
                       color: KColors.surface2,

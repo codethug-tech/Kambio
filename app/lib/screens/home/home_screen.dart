@@ -62,6 +62,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _search = TextEditingController();
   String _q = '';
   String? _myProfileId; // users.id (profile UUID, not auth UID)
+  Timer? _debounce;
 
   @override
   void initState() {
@@ -86,6 +87,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     category: _filterCategory,
     q: _q,
   );
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -224,7 +232,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   TextField(
                     controller: _search,
                     style: KTextStyles.body,
-                    onChanged: (v) => setState(() => _q = v),
+                    onChanged: (v) {
+                      _debounce?.cancel();
+                      _debounce = Timer(const Duration(milliseconds: 400), () {
+                        setState(() => _q = v);
+                      });
+                    },
                     decoration: InputDecoration(
                       hintText: 'Buscar ofertas...',
                       prefixIcon: const Icon(
